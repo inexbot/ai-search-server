@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>纳博特 AI 搜索</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶部导航 */
+    header {
+      background: rgba(15, 15, 25, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.offline {
+      background: #ef4444;
+      animation: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* 主内容 */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 20px 80px;
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .hero h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 10px;
+      letter-spacing: -0.5px;
+    }
+
+    .hero p {
+      color: #6b7280;
+      font-size: 15px;
+    }
+
+    /* 搜索框 */
+    .search-wrap {
+      width: 100%;
+      position: relative;
+      margin-bottom: 32px;
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 6px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .search-box:focus-within {
+      border-color: rgba(99, 102, 241, 0.6);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    }
+
+    .search-input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      color: #f3f4f6;
+      font-size: 16px;
+      padding: 10px 14px;
+      line-height: 1.5;
+    }
+
+    .search-input::placeholder {
+      color: #4b5563;
+    }
+
+    .search-btn {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 10px 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.2s, transform 0.1s;
+      white-space: nowrap;
+    }
+
+    .search-btn:hover { opacity: 0.9; }
+    .search-btn:active { transform: scale(0.97); }
+    .search-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* 加载动画 */
+    .spinner {
+      display: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* 回复区域 */
+    #answer {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 24px;
+      min-height: 120px;
+      line-height: 1.75;
+      font-size: 15px;
+      color: #d1d5db;
+    }
+
+    #answer:empty { display: none; }
+
+    /* Markdown 样式（marked.js 输出适配） */
+    #answer {
+      font-size: 15px;
+      line-height: 1.75;
+      color: #d1d5db;
+    }
+    #answer > *:first-child { margin-top: 0; }
+    #answer > *:last-child { margin-bottom: 0; }
+
+    #answer h1, #answer h2, #answer h3,
+    #answer h4, #answer h5, #answer h6 {
+      color: #f9fafb;
+      font-weight: 600;
+      line-height: 1.3;
+      margin: 1.2em 0 0.5em;
+    }
+    #answer h1 { font-size: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.3em; }
+    #answer h2 { font-size: 17px; }
+    #answer h3 { font-size: 15px; }
+
+    #answer p { margin: 0.7em 0; }
+
+    #answer code {
+      background: rgba(255,255,255,0.08);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: 0.88em;
+      color: #a5b4fc;
+    }
+
+    #answer pre {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      margin: 1em 0;
+    }
+
+    #answer pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 13px;
+      color: #e2e8f0;
+    }
+
+    #answer table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+      font-size: 14px;
+    }
+
+    #answer th, #answer td {
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    #answer th {
+      background: rgba(255,255,255,0.05);
+      color: #f9fafb;
+      font-weight: 600;
+    }
+
+    #answer tr:nth-child(even) td {
+      background: rgba(255,255,255,0.02);
+    }
+
+    #answer ul, #answer ol {
+      padding-left: 1.6em;
+      margin: 0.6em 0;
+    }
+
+    #answer li { margin: 0.3em 0; }
+    #answer li > ul, #answer li > ol { margin: 0.2em 0; }
+
+    #answer a { color: #818cf8; text-decoration: none; }
+    #answer a:hover { text-decoration: underline; }
+
+    #answer blockquote {
+      border-left: 3px solid #6366f1;
+      padding: 4px 14px;
+      color: #9ca3af;
+      margin: 1em 0;
+      background: rgba(99,102,241,0.05);
+    }
+
+    #answer blockquote p { margin: 0.4em 0; }
+
+    #answer hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      margin: 1.5em 0;
+    }
+
+    #answer img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 0.5em 0;
+    }
+
+    #answer strong { color: #f3f4f6; font-weight: 600; }
+    #answer em { color: #d1d5db; }
+
+    /* Typing cursor */
+    .typing-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 14px;
+      background: #6366f1;
+      vertical-align: middle;
+      margin-left: 2px;
+      animation: blink 0.8s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* 示例问题 */
+    .examples {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .example-chip {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 13px;
+      color: #9ca3af;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .example-chip:hover {
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border-color: rgba(99, 102, 241, 0.3);
+    }
+
+    /* 页脚 */
+    footer {
+      text-align: center;
+      padding: 16px;
+      color: #374151;
+      font-size: 12px;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">N</div>
+    iNexBot AI 助手
+  </div>
+  <div id="status" class="status-dot" title="正在连接..."></div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>工业机器人智能问答</h1>
+    <p>基于纳博特技术文档的 AI 搜索助手</p>
+  </div>
+
+  <div class="search-wrap">
+    <div class="search-box">
+      <input
+        class="search-input"
+        type="text"
+        id="query"
+        placeholder="输入您的问题，如：C1201支持哪些通讯协议？"
+        onkeydown="if(event.key==='Enter') search()"
+      >
+      <button class="search-btn" id="btn" onclick="search()">
+        <span id="btn-text">搜索</span>
+        <div class="spinner" id="spinner"></div>
+      </button>
+    </div>
+  </div>
+
+  <div id="answer"></div>
+
+  <div class="examples">
+    <div class="example-chip" onclick="askExample('纳博特控制器支持哪些总线通讯？')">总线通讯协议</div>
+    <div class="example-chip" onclick="askExample('工具手标定有哪几种方式？')">工具手标定方法</div>
+    <div class="example-chip" onclick="askExample('多层多道焊接如何配置？')">多层多道焊接</div>
+    <div class="example-chip" onclick="askExample('视觉定位精度是多少？')">视觉定位精度</div>
+    <div class="example-chip" onclick="askExample('如何进行用户坐标标定？')">用户坐标标定</div>
+  </div>
+</main>
+
+<footer>
+  iNexBot AI 搜索 · 纳博特科技
+</footer>
+
+<script>
+  const answerEl = document.getElementById('answer');
+  const btnEl = document.getElementById('btn');
+  const btnTextEl = document.getElementById('btn-text');
+  const spinnerEl = document.getElementById('spinner');
+  const queryEl = document.getElementById('query');
+  const statusEl = document.getElementById('status');
+  let abortController = null;
+
+  // 健康检查
+  async function checkHealth() {
+    try {
+      const res = await fetch('/api/health', { signal: AbortSignal.timeout(5000) });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        statusEl.classList.remove('offline');
+        statusEl.title = 'AI 服务在线';
+      } else {
+        statusEl.classList.add('offline');
+        statusEl.title = 'AI 服务未授权';
+      }
+    } catch {
+      statusEl.classList.add('offline');
+      statusEl.title = 'AI 服务离线';
+    }
+  }
+  checkHealth();
+  setInterval(checkHealth, 30000);
+
+  function askExample(q) {
+    queryEl.value = q;
+    search();
+  }
+
+  async function search() {
+    const message = queryEl.value.trim();
+    if (!message || btnEl.disabled) return;
+
+    // 取消前一个请求
+    if (abortController) abortController.abort();
+    abortController = new AbortController();
+
+    answerEl.innerHTML = '';
+    setLoading(true);
+
+    // 添加光标
+    const cursor = document.createElement('span');
+    cursor.className = 'typing-cursor';
+    answerEl.appendChild(cursor);
+
+    try {
+      const res = await fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+        signal: abortController.signal,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: '未知错误' }));
+        cursor.remove();
+        answerEl.innerHTML = `<p style="color:#f87171">请求失败: ${err.error}</p>`;
+        return;
+      }
+
+      // 累积纯文本
+      let plainText = '';
+      let textNode = null;
+      let done = false;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (!done) {
+        const { value, done: d } = await reader.read();
+        done = d;
+        if (value) {
+          buffer += decoder.decode(value, { stream: !done });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') { done = true; break; }
+              try {
+                const json = JSON.parse(data);
+                if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
+                  const chars = json.choices[0].delta.content;
+                  plainText += chars;
+                  // 追加到 textNode（不重渲染已有内容）
+                  if (!textNode) {
+                    textNode = document.createTextNode(chars);
+                    answerEl.insertBefore(textNode, cursor);
+                  } else {
+                    textNode.textContent += chars;
+                  }
+                  // 定期将已有纯文本转为 markdown HTML（每累积30字符更新一次）
+                  if (plainText.length % 30 < 50 || done) {
+                    cursor.remove();
+                    answerEl.innerHTML = simpleMarkdown(plainText);
+                    answerEl.appendChild(cursor);
+                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                  }
+                }
+              } catch (e) {
+                // 忽略解析错误，继续处理下一行
+              }
+            }
+          }
+        }
+      }
+
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        cursor.remove();
+        answerEl.innerHTML = `<p style="color:#f87171">网络错误: ${e.message}</p>`;
+      }
+    } finally {
+      setLoading(false);
+      cursor.remove();
+    }
+  }
+
+  function setLoading(on) {
+    btnEl.disabled = on;
+    btnTextEl.style.display = on ? 'none' : 'inline';
+    spinnerEl.style.display = on ? 'block' : 'none';
+  }
+
+  // Markdown 渲染（基于 marked.js）
+  function simpleMarkdown(text) {
+    if (!text) return '';
+    return marked.parse(text, { breaks: true, gfm: true });
+  }
+</script>
+
+</body>
+</html>
